@@ -10,6 +10,7 @@
 extern "C" {
 #endif  /* __cplusplus */
 
+#include "esp_err.h"
 /**
  * @brief  Initialize the Coze chat application
  *

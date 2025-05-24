@@ -5,7 +5,7 @@ idf_component_register(SRCS "main.c"
                     "app_network/ml307_wrapper.cpp"
                     "app_audio/audio_board.c"
                     "app_coze/coze_chat_app.c"
-                    INCLUDE_DIRS "." "app_network/" "app_coze/"
+                    INCLUDE_DIRS "." "app_network/" "app_coze/" "app_audio/"
                     REQUIRES esp_wifi esp_http_server nvs_flash json spiffs 78__esp-ml307 driver espressif__esp_coze)
 
 # 启用C++支持

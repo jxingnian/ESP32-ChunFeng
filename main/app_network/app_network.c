@@ -17,6 +17,10 @@
 #include "wifi_manager.h"
 #include "http_server.h"
 #include "ml307_wrapper.h"
+#include "esp_coze_chat.h"
+#include "coze_chat_app.h"
+#include "esp_err.h"
+
 
 static const char *TAG = "APP_NETWORK";
 
@@ -92,6 +96,13 @@ static void net_fsm_handle(net_fsm_t *fsm)
         case NET_STATE_WIFI_CONNECTED:// WiFi已连接
             ESP_LOGI(TAG, "State: WiFi已连接");
             stop_webserver();// 停止配网
+
+
+    /* 初始化COZE */
+    esp_err_t ret = coze_chat_app_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize audio board");
+    }
             while(1){
                 vTaskDelay(pdMS_TO_TICKS(1000)); 
             }

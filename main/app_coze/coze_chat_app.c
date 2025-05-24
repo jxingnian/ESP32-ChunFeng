@@ -10,18 +10,19 @@
  * 
  * 该文件实现了基于ESP32的语音对话功能,支持按键触发和语音唤醒两种对话模式
  */
-
+#include "coze_chat_app.h"
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
-
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_check.h"
 
+
 #include "esp_coze_chat.h"
+#include "audio_board.h"
 
 /* 按键录音状态位定义 */
 #define BUTTON_REC_READING (1 << 0)
@@ -66,7 +67,8 @@ static void audio_event_callback(esp_coze_chat_event_t event, char *data, void *
  */
 static void audio_data_callback(char *data, int len, void *ctx)
 {
-    // audio_playback_feed_data((uint8_t *)data, len);
+    size_t bytes_written = 0;
+    audio_data_play(data, len, &bytes_written);
 }
 
 /**
@@ -101,21 +103,30 @@ static esp_err_t init_coze_chat()
  */
 static void audio_data_read_task(void *pv)
 {
+    uint8_t *data = heap_caps_calloc(1, 4096 * 3, MALLOC_CAP_SPIRAM);
+    if (data == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate memory for audio buffer");
+        vTaskDelete(NULL);
+        return;
+    }
 
-//     uint8_t *data = esp_gmf_oal_calloc(1, 4096 * 3);
+    size_t bytes_read = 0;
+    while (true) {
+#if defined CONFIG_VOICE_WAKEUP_MODE
+        esp_err_t ret = audio_data_get(data, 4096 * 3, &bytes_read);
+        if (ret == ESP_OK && coze_chat.wakeuped) {
+            esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, bytes_read);
+        }
+#else
+        esp_err_t ret = audio_data_get(data, 4096 * 3, &bytes_read);
+        if (ret == ESP_OK) {
+            esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, bytes_read);
+        }
+#endif 
+        vTaskDelay(pdMS_TO_TICKS(10)); // 添加短暂延时避免占用过多CPU
+    }
 
-//     int ret = 0;
-//     while (true) {
-// #if defined CONFIG_VOICE_WAKEUP_MODE
-//         ret = audio_recorder_read_data(data, 4096 * 3);
-//         if (coze_chat.wakeuped) {
-//             esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, ret);
-//         }
-// #else
-//         ret = audio_recorder_read_data(data, 4096 * 3);
-//         esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, ret);
-// #endif 
-//     }
+    heap_caps_free(data);
 }
 
 /**
@@ -140,7 +151,10 @@ esp_err_t coze_chat_app_init(void)
     coze_chat.wakeuped = false;
 
     /* 初始化COZE聊天核心功能 */
-    init_coze_chat();
+    esp_err_t ret = init_coze_chat();
+    if (ret != ESP_OK) {
+        return ret;
+    }
 
     /* 创建音频数据读取任务:
      * - 任务名称: audio_data_read_task

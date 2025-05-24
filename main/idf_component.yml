@@ -16,3 +16,4 @@ dependencies:
   #   public: true
   78/esp-ml307: ^2.0.3
   espressif/esp_coze: ^0.5.1~1
+  78/esp-opus: ^1.0.5
