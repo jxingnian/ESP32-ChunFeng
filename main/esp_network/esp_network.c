@@ -20,7 +20,7 @@
 static const char *TAG = "esp_network";
 
 // 全局状态机实例
-static net_fsm_t g_net_fsm;
+net_fsm_t g_net_fsm;
 
 // 状态机初始化
 static void net_fsm_init(net_fsm_t *fsm)
@@ -31,7 +31,7 @@ static void net_fsm_init(net_fsm_t *fsm)
 }
 
 // 状态切换
-static void net_fsm_set_state(net_fsm_t *fsm, net_state_t new_state)
+void net_fsm_set_state(net_fsm_t *fsm, net_state_t new_state)
 {
     if (fsm) {
         fsm->state = new_state;
@@ -39,7 +39,7 @@ static void net_fsm_set_state(net_fsm_t *fsm, net_state_t new_state)
 }
 
 // 获取当前状态
-static net_state_t net_fsm_get_state(net_fsm_t *fsm)
+net_state_t net_fsm_get_state(net_fsm_t *fsm)
 {
     if (fsm) {
         return fsm->state;
@@ -52,31 +52,38 @@ static void net_fsm_handle(net_fsm_t *fsm)
     switch (fsm->state) {
         case NET_STATE_WIFI_CONNECTING:// 尝试WiFi连接
             ESP_LOGI(TAG, "State: 尝试WiFi连接");
-            if(wifi_try_connect() == ESP_OK){
-                net_fsm_set_state(fsm, NET_STATE_WIFI_CONNECTED);
-            }else{
-                ESP_LOGE(TAG, "WiFi连接失败");
-                net_fsm_set_state(fsm, NET_STATE_4G_CONNECTING);
-            }
+            // if(wifi_try_connect() == ESP_OK){
+            //     net_fsm_set_state(fsm, NET_STATE_WIFI_CONNECTED);
+            // }else{
+            //     ESP_LOGE(TAG, "WiFi连接失败");
+            //     net_fsm_set_state(fsm, NET_STATE_4G_CONNECTING);
+            // }
             break;
         case NET_STATE_4G_CONNECTING:// 尝试4G连接
-            // 启动配网
             ESP_LOGI(TAG, "State: 尝试4G连接");
-            // TODO: 实现配网逻辑
+            if(0){// 如果4G连接失败进入配网
+
+            }else{
+                net_fsm_set_state(fsm, NET_STATE_WIFI_CONFIG);
+            }
             break;
         case NET_STATE_WIFI_CONFIG://进入WiFi配网
-            // 处理4G模式逻辑
-            // 例如：初始化4G模块
             ESP_LOGI(TAG, "State: 进入WiFi配网");
-            // TODO: 实现4G逻辑
+            start_webserver();// 启动配网
+            while(1){
+                vTaskDelay(pdMS_TO_TICKS(1000)); 
+            }
             break;
         case NET_STATE_WIFI_CONNECTED:// WiFi已连接
             ESP_LOGI(TAG, "State: WiFi已连接");
-            // 检查网络连接 如果WiFi和4G都没连接 则进入
+            stop_webserver();// 停止配网
+            while(1){
+                vTaskDelay(pdMS_TO_TICKS(1000)); 
+            }
             break;
         case NET_STATE_4G_CONNECTED:// 4G已连接
             ESP_LOGI(TAG, "State: 4G已连接");
-            // 检查网络连接 如果WiFi和4G都没连接 则进入
+            
             break;
             
         default:

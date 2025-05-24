@@ -25,8 +25,15 @@ typedef enum {
 typedef struct {
     net_state_t state;
 } net_fsm_t;
+// 全局状态机实例
+extern net_fsm_t g_net_fsm;
 
 // 网络初始化
 void network_init(void);
 
+// 状态切换
+void net_fsm_set_state(net_fsm_t *fsm, net_state_t new_state);
+
+// 获取当前状态
+net_state_t net_fsm_get_state(net_fsm_t *fsm);
 #endif // ESP_NETWORK_H

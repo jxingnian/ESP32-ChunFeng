@@ -18,6 +18,7 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "wifi_manager.h"
+#include "esp_network.h"
 
 // WiFi配置参数
 #define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID        // WiFi名称
@@ -27,62 +28,10 @@
 
 static const char *TAG = "wifi_manager";  // 日志标签
 
+extern net_fsm_t g_net_fsm;
+
 #define MAX_RETRY_COUNT 5
 static int s_retry_num = 0;
-
-esp_err_t wifi_check_connected(void)
-{
-    wifi_ap_record_t ap_info;
-    int wait_count = 0;
-    while (wait_count < 30) { // 3秒，每次100ms
-        if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
-            ESP_LOGI(TAG, "WiFi已连接到AP: %s", ap_info.ssid);
-            return ESP_OK;
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
-        wait_count++;
-    }
-    ESP_LOGW(TAG, "WiFi未连接（3秒内未检测到AP）");
-    return ESP_FAIL;
-}
-
-// 尝试从nvs获取信息连接WiFi
-esp_err_t wifi_try_connect(void)
-{
-    esp_err_t err;
-
-    if (wifi_check_connected() == ESP_OK) {
-        return ESP_OK;
-    }
-
-    // 尝试从NVS读取保存的WiFi配置
-    nvs_handle_t nvs_handle;
-    err = nvs_open("wifi_config", NVS_READONLY, &nvs_handle);
-    if (err == ESP_OK) {
-        wifi_config_t sta_config;
-        size_t size = sizeof(wifi_config_t);
-        err = nvs_get_blob(nvs_handle, "sta_config", &sta_config, &size);
-        if (err == ESP_OK) {
-            ESP_LOGI(TAG, "找到已保存的WiFi配置，SSID: %s", sta_config.sta.ssid);
-            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-            ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_config));
-        }
-        nvs_close(nvs_handle);
-
-        // 连接WiFi
-        err = esp_wifi_connect();
-        if (err == ESP_OK) {
-            ESP_LOGI(TAG, "WiFi连接请求已发起");
-        } else {
-            ESP_LOGE(TAG, "WiFi连接请求失败: %s", esp_err_to_name(err));
-            return err;
-        }
-
-        return wifi_check_connected();
-    }
-
-    return ESP_FAIL;
-}
 
 // WiFi事件处理函数
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
@@ -125,6 +74,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                         nvs_commit(nvs_handle);
                         nvs_close(nvs_handle);
                     }
+                    net_fsm_set_state(&g_net_fsm,NET_STATE_WIFI_CONFIG);
                 }
                 break;
         }
@@ -141,6 +91,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                 nvs_commit(nvs_handle);
                 nvs_close(nvs_handle);
             }
+            net_fsm_set_state(&g_net_fsm,NET_STATE_WIFI_CONNECTED);
         }
     }
 }
@@ -240,4 +191,3 @@ esp_err_t wifi_reset_connection_retry(void)
     
     return ESP_OK;
 }
-#define DEFAULT_SCAN_LIST_SIZE 10  // 默认扫描列表大小
