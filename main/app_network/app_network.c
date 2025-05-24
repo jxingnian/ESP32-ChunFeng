@@ -8,7 +8,7 @@
  * 遇事不决，可问春风
  */
 
-#include "esp_network.h"
+#include "app_network.h"
 #include "nvs_flash.h"
 #include "esp_spiffs.h"
 #include "freertos/FreeRTOS.h"
@@ -16,8 +16,9 @@
 #include "esp_log.h"
 #include "wifi_manager.h"
 #include "http_server.h"
+#include "ml307_wrapper.h"
 
-static const char *TAG = "esp_network";
+static const char *TAG = "APP_NETWORK";
 
 // 全局状态机实例
 net_fsm_t g_net_fsm;
@@ -61,9 +62,23 @@ static void net_fsm_handle(net_fsm_t *fsm)
             break;
         case NET_STATE_4G_CONNECTING:// 尝试4G连接
             ESP_LOGI(TAG, "State: 尝试4G连接");
-            if(0){// 如果4G连接失败进入配网
+            ml307_modem_t* modem = ml307_modem_create(GPIO_NUM_13, GPIO_NUM_14, 2048);
+            ml307_modem_set_debug(modem, true);
+            ml307_modem_set_baudrate(modem, 921600);
 
-            }else{
+            if (ml307_modem_wait_network(modem) == ESP_OK) {
+                // Print IP Address
+                ESP_LOGI(TAG, "IP Address: %s", ml307_modem_get_ip(modem));
+                // Print IMEI, ICCID, Product ID, Carrier Name
+                ESP_LOGI(TAG, "IMEI: %s", ml307_modem_get_imei(modem));
+                ESP_LOGI(TAG, "ICCID: %s", ml307_modem_get_iccid(modem));
+                ESP_LOGI(TAG, "Product ID: %s", ml307_modem_get_module_name(modem));
+                ESP_LOGI(TAG, "Carrier Name: %s", ml307_modem_get_carrier_name(modem));
+                // Print CSQ
+                ESP_LOGI(TAG, "CSQ: %d", ml307_modem_get_csq(modem));
+                net_fsm_set_state(fsm, NET_STATE_4G_CONNECTED);
+            } else {
+                ml307_modem_destroy(modem);
                 net_fsm_set_state(fsm, NET_STATE_WIFI_CONFIG);
             }
             break;
@@ -83,7 +98,9 @@ static void net_fsm_handle(net_fsm_t *fsm)
             break;
         case NET_STATE_4G_CONNECTED:// 4G已连接
             ESP_LOGI(TAG, "State: 4G已连接");
-            
+            while(1){
+                vTaskDelay(pdMS_TO_TICKS(1000)); 
+            }
             break;
             
         default:

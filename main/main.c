@@ -13,7 +13,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "esp_network/esp_network.h"
+#include "app_network/app_network.h"
+#include "app_audio/audio_board.h"
 
 static const char *TAG = "main";
 
@@ -24,4 +25,8 @@ void app_main(void)
     // 联网
     network_init();
 
+    // 音频板初始化
+    audio_board_init();
+
+    
 }

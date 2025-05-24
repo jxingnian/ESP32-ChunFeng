@@ -15,3 +15,4 @@ dependencies:
   #   # All dependencies of `main` are public by default.
   #   public: true
   78/esp-ml307: ^2.0.3
+  espressif/esp_coze: ^0.5.1~1
