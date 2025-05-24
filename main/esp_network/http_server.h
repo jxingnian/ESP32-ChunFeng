@@ -1,7 +1,11 @@
-/*
- * @Author: jxingnian j_xingnian@163.com
- * @Date: 2025-01-02 00:07:02
- * @Description: HTTP服务器头文件
+/*** 
+ * @Author: jixingnian@gmail.com
+ * @Date: 2025-05-24 14:53:16
+ * @LastEditTime: 2025-05-24 15:51:19
+ * @LastEditors: 星年
+ * @Description: HTTP服务器实现
+ * @FilePath: \ESP32-ChunFeng\main\esp_network\http_server.h
+ * @遇事不决，可问春风
  */
 
 #ifndef _HTTP_SERVER_H_

@@ -1,7 +1,11 @@
 /*
- * @Author: jxingnian j_xingnian@163.com
- * @Date: 2025-01-02 00:07:02
+ * @Author: jixingnian@gmail.com
+ * @Date: 2025-05-24 14:53:16
+ * @LastEditTime: 2025-05-24 15:51:15
+ * @LastEditors: 星年
  * @Description: HTTP服务器实现
+ * @FilePath: \ESP32-ChunFeng\main\esp_network\http_server.c
+ * 遇事不决，可问春风
  */
 
 #include <esp_wifi.h>

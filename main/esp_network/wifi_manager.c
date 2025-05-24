@@ -1,3 +1,12 @@
+/*
+ * @Author: jixingnian@gmail.com
+ * @Date: 2025-05-24 14:53:16
+ * @LastEditTime: 2025-05-24 17:06:41
+ * @LastEditors: 星年
+ * @Description: WiFi管理
+ * @FilePath: \ESP32-ChunFeng\main\esp_network\wifi_manager.c
+ * 遇事不决，可问春风
+ */
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -20,6 +29,60 @@ static const char *TAG = "wifi_manager";  // 日志标签
 
 #define MAX_RETRY_COUNT 5
 static int s_retry_num = 0;
+
+esp_err_t wifi_check_connected(void)
+{
+    wifi_ap_record_t ap_info;
+    int wait_count = 0;
+    while (wait_count < 30) { // 3秒，每次100ms
+        if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+            ESP_LOGI(TAG, "WiFi已连接到AP: %s", ap_info.ssid);
+            return ESP_OK;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+        wait_count++;
+    }
+    ESP_LOGW(TAG, "WiFi未连接（3秒内未检测到AP）");
+    return ESP_FAIL;
+}
+
+// 尝试从nvs获取信息连接WiFi
+esp_err_t wifi_try_connect(void)
+{
+    esp_err_t err;
+
+    if (wifi_check_connected() == ESP_OK) {
+        return ESP_OK;
+    }
+
+    // 尝试从NVS读取保存的WiFi配置
+    nvs_handle_t nvs_handle;
+    err = nvs_open("wifi_config", NVS_READONLY, &nvs_handle);
+    if (err == ESP_OK) {
+        wifi_config_t sta_config;
+        size_t size = sizeof(wifi_config_t);
+        err = nvs_get_blob(nvs_handle, "sta_config", &sta_config, &size);
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "找到已保存的WiFi配置，SSID: %s", sta_config.sta.ssid);
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+            ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &sta_config));
+        }
+        nvs_close(nvs_handle);
+
+        // 连接WiFi
+        err = esp_wifi_connect();
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "WiFi连接请求已发起");
+        } else {
+            ESP_LOGE(TAG, "WiFi连接请求失败: %s", esp_err_to_name(err));
+            return err;
+        }
+
+        return wifi_check_connected();
+    }
+
+    return ESP_FAIL;
+}
 
 // WiFi事件处理函数
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
@@ -83,7 +146,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 }
 
 // 初始化WiFi软AP
-esp_err_t wifi_init_softap(void)
+esp_err_t wifi_init(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());  // 初始化底层TCP/IP堆栈
     ESP_ERROR_CHECK(esp_event_loop_create_default());  // 创建默认事件循环
@@ -160,6 +223,7 @@ esp_err_t wifi_init_softap(void)
              EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS, EXAMPLE_ESP_WIFI_CHANNEL);
     return ESP_OK;
 }
+
 esp_err_t wifi_reset_connection_retry(void)
 {
     // 重置重试计数
@@ -177,68 +241,3 @@ esp_err_t wifi_reset_connection_retry(void)
     return ESP_OK;
 }
 #define DEFAULT_SCAN_LIST_SIZE 10  // 默认扫描列表大小
-
-// 扫描周围WiFi网络
-esp_err_t wifi_scan_networks(wifi_ap_record_t **ap_records, uint16_t *ap_count)
-{
-    esp_err_t ret;
-    uint16_t number = DEFAULT_SCAN_LIST_SIZE;
-
-    // 分配内存用于存储扫描结果
-    *ap_records = malloc(DEFAULT_SCAN_LIST_SIZE * sizeof(wifi_ap_record_t));
-    if (*ap_records == NULL) {
-        ESP_LOGE(TAG, "为扫描结果分配内存失败");
-        return ESP_ERR_NO_MEM;
-    }
-
-    // 配置扫描参数
-    wifi_scan_config_t scan_config = {
-        .ssid = NULL,
-        .bssid = NULL,
-        .channel = 0,
-        .show_hidden = false,
-        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
-        .scan_time.active.min = 120,
-        .scan_time.active.max = 150,
-    };
-
-    // 开始扫描
-    ret = esp_wifi_scan_start(&scan_config, true);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "开始扫描失败");
-        free(*ap_records);
-        *ap_records = NULL;
-        return ret;
-    }
-
-    // 获取扫描结果
-    ret = esp_wifi_scan_get_ap_records(&number, *ap_records);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "获取扫描结果失败");
-        free(*ap_records);
-        *ap_records = NULL;
-        return ret;
-    }
-
-    // 获取找到的AP数量
-    ret = esp_wifi_scan_get_ap_num(ap_count);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "获取扫描到的AP数量失败");
-        free(*ap_records);
-        *ap_records = NULL;
-        return ret;
-    }
-
-    // 限制AP数量不超过默认扫描列表大小
-    if (*ap_count > DEFAULT_SCAN_LIST_SIZE) {
-        *ap_count = DEFAULT_SCAN_LIST_SIZE;
-    }
-
-    // 打印扫描结果
-    ESP_LOGI(TAG, "发现 %d 个接入点:", *ap_count);
-    for (int i = 0; i < *ap_count; i++) {
-        ESP_LOGI(TAG, "SSID: %s, 信号强度: %d", (*ap_records)[i].ssid, (*ap_records)[i].rssi);
-    }
-
-    return ESP_OK;
-}
