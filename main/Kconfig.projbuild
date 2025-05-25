@@ -1,3 +1,5 @@
+rsource "../components/common/Kconfig.in"
+
 menu "ChunFeng Configuration"
 
     config ESP_WIFI_SSID
