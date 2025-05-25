@@ -141,7 +141,7 @@ esp_err_t audio_manager_init(void)
     };
 
     // 初始化音频编解码器
-    esp_gmf_setup_periph_codec(&play_info, &record_info, &audio_manager.play_dev, &audio_manager.rec_dev);
+    esp_gmf_setup_periph_codec(&play_info, &record_info, &audio_manager.play_dev, NULL);
 
     // 初始化资源池
     esp_gmf_pool_init(&audio_manager.pool);

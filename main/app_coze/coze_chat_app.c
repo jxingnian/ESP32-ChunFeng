@@ -20,7 +20,7 @@
 #include "esp_log.h"
 #include "esp_check.h"
 
-
+#include "audio_processor.h"
 #include "esp_coze_chat.h"
 #include "audio_board.h"
 
@@ -67,8 +67,7 @@ static void audio_event_callback(esp_coze_chat_event_t event, char *data, void *
  */
 static void audio_data_callback(char *data, int len, void *ctx)
 {
-    size_t bytes_written = 0;
-    audio_data_play(data, len, &bytes_written);
+    audio_playback_feed_data((uint8_t *)data, len);
 }
 
 /**
@@ -129,6 +128,21 @@ static void audio_data_read_task(void *pv)
     heap_caps_free(data);
 }
 
+/* 打开音频管道 */
+static void audio_pipe_open()
+{
+    audio_manager_init();  // 初始化音频管理器
+
+// #if CONFIG_KEY_PRESS_DIALOG_MODE
+//     audio_recorder_open(NULL, NULL);  // 按键模式下打开录音机
+// #else
+//     audio_prompt_open();              // 打开提示音
+//     audio_recorder_open(recorder_event_callback_fn, NULL);  // 语音唤醒模式下打开录音机
+// #endif /* CONFIG_KEY_PRESS_DIALOG_MODE */
+    audio_playback_open();           // 打开音频播放
+    audio_playback_run();            // 运行音频播放
+}
+
 /**
  * @brief COZE聊天应用初始化
  * 
@@ -155,6 +169,9 @@ esp_err_t coze_chat_app_init(void)
     if (ret != ESP_OK) {
         return ret;
     }
+
+    /* 初始化并打开音频管道,包括录音和播放 */
+    audio_pipe_open();  
 
     /* 创建音频数据读取任务:
      * - 任务名称: audio_data_read_task

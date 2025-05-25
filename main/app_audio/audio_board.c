@@ -45,9 +45,9 @@ esp_err_t audio_board_init(void)
     };
     
     ret |= i2s_driver_install(I2S_NUM_0, &i2s0_config, 0, NULL);
-    ret |= i2s_driver_install(I2S_NUM_1, &i2s1_config, 0, NULL);
+    // ret |= i2s_driver_install(I2S_NUM_1, &i2s1_config, 0, NULL);
     audio_input_init();
-    audio_output_init();
+    // audio_output_init();
     ESP_LOGI(TAG, "音频配置完成");
     return ret;
 }
