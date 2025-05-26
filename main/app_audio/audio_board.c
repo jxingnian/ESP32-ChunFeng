@@ -3,12 +3,10 @@
 #include "esp_log.h"
 #include "driver/i2s.h"
 #include "driver/gpio.h"
-
 #define TAG "AUDIO_BOARD"
 
 // I2S配置
 #define I2S_SAMPLE_RATE     (16000)
-#define I2S_CHANNEL_NUM     (1)  // 单声道
 #define I2S_BITS_PER_SAMPLE (16)
 #define I2S_DMA_BUF_COUNT   (8)
 #define I2S_DMA_BUF_LEN     (1024)
@@ -45,9 +43,9 @@ esp_err_t audio_board_init(void)
     };
     
     ret |= i2s_driver_install(I2S_NUM_0, &i2s0_config, 0, NULL);
-    // ret |= i2s_driver_install(I2S_NUM_1, &i2s1_config, 0, NULL);
+    ret |= i2s_driver_install(I2S_NUM_1, &i2s1_config, 0, NULL);
     audio_input_init();
-    // audio_output_init();
+    audio_output_init();
     ESP_LOGI(TAG, "音频配置完成");
     return ret;
 }

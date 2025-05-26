@@ -19,15 +19,145 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_check.h"
-
-#include "audio_processor.h"
+#include "opus.h"
 #include "esp_coze_chat.h"
 #include "audio_board.h"
 
 /* 按键录音状态位定义 */
 #define BUTTON_REC_READING (1 << 0)
+#define SAMPLE_RATE         16000  // 采样率16kHz
+#define CHANNELS           1       // 单声道
+#define MAX_FRAME_SIZE     960    // 最大帧长(60ms @ 16kHz)
+#define MAX_PACKET_SIZE    1500   // Opus包最大大小
+#define FRAMES_PER_SECOND  18     // 每秒最大帧数
 
 static char *TAG = "COZE_CHAT_APP";
+// Opus解码器实例
+static OpusDecoder *opus_decoder = NULL;
+static QueueHandle_t audio_queue = NULL;
+
+// 定义音频帧结构
+struct audio_frame {
+    uint8_t data[MAX_PACKET_SIZE];
+    size_t len;
+};
+
+// 初始化Opus解码器
+static esp_err_t init_opus_decoder(void)
+{
+    int err;
+    
+    // 创建音频队列
+    audio_queue = xQueueCreate(FRAMES_PER_SECOND, sizeof(struct audio_frame));
+    if (audio_queue == NULL) {
+        ESP_LOGE(TAG, "Failed to create audio queue");
+        return ESP_FAIL;
+    }
+    
+    // 创建Opus解码器，16kHz采样率，单声道
+    opus_decoder = opus_decoder_create(SAMPLE_RATE, CHANNELS, &err);
+    if (err != OPUS_OK) {
+        ESP_LOGE(TAG, "Failed to create Opus decoder: %d", err);
+        return ESP_FAIL;
+    }
+    
+    // 设置Opus解码器参数
+    opus_decoder_ctl(opus_decoder, OPUS_SET_GAIN(0));          // 设置增益为0dB
+    opus_decoder_ctl(opus_decoder, OPUS_SET_LSB_DEPTH(16));    // 设置位深度为16位
+    
+    return ESP_OK;
+}
+
+// 1. 进一步增加任务栈大小
+#define OPUS_DECODE_TASK_STACK_SIZE (16*1024)  // 增加到16KB
+
+// 2. 使用静态方式创建任务以确保内存分配
+static StaticTask_t opus_decode_task_buffer;
+static StackType_t opus_decode_task_stack[OPUS_DECODE_TASK_STACK_SIZE];
+
+// 3. 修改opus解码任务实现，确保所有缓冲区都是静态分配
+static void opus_decode_task(void *arg)
+{
+    // 使用静态分配的缓冲区
+    static struct {
+        int16_t pcm_out[MAX_FRAME_SIZE * 2];  // 增加缓冲区大小
+        uint8_t opus_data[MAX_PACKET_SIZE];
+        size_t data_len;
+    } audio_buf = {0};
+    
+    ESP_LOGI(TAG, "Opus decode task started, stack: %d", uxTaskGetStackHighWaterMark(NULL));
+
+    while (1) {
+        struct audio_frame frame;
+        if (xQueueReceive(audio_queue, &frame, portMAX_DELAY) == pdTRUE) {
+            ESP_LOGI(TAG, "Received frame len: %d, stack: %d", 
+                     frame.len, 
+                     uxTaskGetStackHighWaterMark(NULL));
+
+            // 安全检查
+            if (frame.len > MAX_PACKET_SIZE) {
+                ESP_LOGE(TAG, "Frame too large: %d", frame.len);
+                continue;
+            }
+
+            // 复制数据到静态缓冲区
+            memcpy(audio_buf.opus_data, frame.data, frame.len);
+            audio_buf.data_len = frame.len;
+
+            // 解码Opus数据
+            int frame_size = opus_decode(opus_decoder, 
+                                       audio_buf.opus_data, 
+                                       audio_buf.data_len, 
+                                       audio_buf.pcm_out, 
+                                       MAX_FRAME_SIZE * 2,  // 增加解码缓冲区大小
+                                       0);
+            
+            if (frame_size > 0) {
+                size_t bytes_written = 0;
+                esp_err_t ret = audio_data_play(audio_buf.pcm_out, 
+                                              frame_size * sizeof(int16_t), 
+                                              &bytes_written);
+                
+                ESP_LOGI(TAG, "Played frame, size: %d, written: %d, ret: %d, stack: %d",
+                         frame_size,
+                         bytes_written,
+                         ret,
+                         uxTaskGetStackHighWaterMark(NULL));
+            } else {
+                ESP_LOGE(TAG, "Opus decode failed: %d", frame_size);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+}
+
+// 修改后的音频数据回调函数
+static void audio_data_callback(char *data, int len, void *ctx)
+{
+    struct audio_frame frame;
+    
+    // 检查数据长度是否合法
+    if (len > MAX_PACKET_SIZE) {
+        ESP_LOGE(TAG, "Received data too large: %d > %d", len, MAX_PACKET_SIZE);
+        return;
+    }
+
+    // 检查队列是否已满
+    UBaseType_t spaces = uxQueueSpacesAvailable(audio_queue);
+    if (spaces == 0) {
+        ESP_LOGW(TAG, "Audio queue is full, dropping frame");
+        return;
+    }
+    
+    // 复制数据到帧结构
+    memcpy(frame.data, data, len);
+    frame.len = len;
+    
+    // 发送到解码队列
+    if (xQueueSend(audio_queue, &frame, 0) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to queue audio frame");
+    }
+}
 
 /**
  * @brief COZE聊天应用结构体
@@ -60,14 +190,6 @@ static void audio_event_callback(esp_coze_chat_event_t event, char *data, void *
     } else if (event == ESP_COZE_CHAT_EVENT_CHAT_SUBTITLE_EVENT) {
         ESP_LOGI(TAG, "Subtitle data: %s", data);
     }
-}
-
-/**
- * @brief 音频数据回调函数,用于播放音频
- */
-static void audio_data_callback(char *data, int len, void *ctx)
-{
-    audio_playback_feed_data((uint8_t *)data, len);
 }
 
 /**
@@ -128,21 +250,6 @@ static void audio_data_read_task(void *pv)
     heap_caps_free(data);
 }
 
-/* 打开音频管道 */
-static void audio_pipe_open()
-{
-    audio_manager_init();  // 初始化音频管理器
-
-// #if CONFIG_KEY_PRESS_DIALOG_MODE
-//     audio_recorder_open(NULL, NULL);  // 按键模式下打开录音机
-// #else
-//     audio_prompt_open();              // 打开提示音
-//     audio_recorder_open(recorder_event_callback_fn, NULL);  // 语音唤醒模式下打开录音机
-// #endif /* CONFIG_KEY_PRESS_DIALOG_MODE */
-    audio_playback_open();           // 打开音频播放
-    audio_playback_run();            // 运行音频播放
-}
-
 /**
  * @brief COZE聊天应用初始化
  * 
@@ -169,9 +276,29 @@ esp_err_t coze_chat_app_init(void)
     if (ret != ESP_OK) {
         return ret;
     }
+    // 初始化Opus解码器
+    ret = init_opus_decoder();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize Opus decoder");
+        return ret;
+    }
+    
+    // 创建解码任务
+    // 使用静态方式创建任务
+    TaskHandle_t task_handle = xTaskCreateStaticPinnedToCore(
+        opus_decode_task,
+        "opus_decode_task",
+        OPUS_DECODE_TASK_STACK_SIZE,
+        NULL,
+        12,
+        opus_decode_task_stack,
+        &opus_decode_task_buffer,
+        1);
 
-    /* 初始化并打开音频管道,包括录音和播放 */
-    audio_pipe_open();  
+    if (task_handle == NULL) {
+        ESP_LOGE(TAG, "Failed to create opus decode task");
+        return ESP_FAIL;
+    }
 
     /* 创建音频数据读取任务:
      * - 任务名称: audio_data_read_task

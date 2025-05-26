@@ -20,7 +20,8 @@
 #include "esp_coze_chat.h"
 #include "coze_chat_app.h"
 #include "esp_err.h"
-
+#include <time.h>
+#include "esp_sntp.h" 
 
 static const char *TAG = "APP_NETWORK";
 
@@ -51,6 +52,56 @@ net_state_t net_fsm_get_state(net_fsm_t *fsm)
     }
     return NET_STATE_WIFI_CONNECTING;
 }
+
+
+// 检查并更新系统时间
+static esp_err_t check_and_update_time(void)
+{
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    // 打印当前时间
+    char strftime_buf[64];
+    strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+    ESP_LOGI(TAG, "当前系统时间: %s", strftime_buf);
+
+    // 检查是否需要更新时间(2025年之前)
+    if (timeinfo.tm_year < (2025 - 1900)) {
+        ESP_LOGI(TAG, "系统时间需要更新");
+        
+        // 配置 SNTP 服务
+        esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+        esp_sntp_setservername(0, "pool.ntp.org");
+        esp_sntp_init();
+
+        // 等待获取时间
+        int retry = 0;
+        const int retry_count = 10;
+        while (esp_sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
+            ESP_LOGI(TAG, "等待SNTP同步... (%d/%d)", retry, retry_count);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+
+        if (retry == retry_count) {
+            ESP_LOGE(TAG, "SNTP同步超时");
+            return ESP_FAIL;
+        }
+
+        // 获取更新后的时间
+        time(&now);
+        localtime_r(&now, &timeinfo);
+        strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+        ESP_LOGI(TAG, "更新后的系统时间: %s", strftime_buf);
+        
+        // 停止SNTP服务
+        esp_sntp_stop();
+    }
+
+    return ESP_OK;
+}
+
 // 状态机处理函数
 static void net_fsm_handle(net_fsm_t *fsm)
 {
@@ -96,13 +147,13 @@ static void net_fsm_handle(net_fsm_t *fsm)
         case NET_STATE_WIFI_CONNECTED:// WiFi已连接
             ESP_LOGI(TAG, "State: WiFi已连接");
             stop_webserver();// 停止配网
+            check_and_update_time();
 
-
-    /* 初始化COZE */
-    esp_err_t ret = coze_chat_app_init();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize audio board");
-    }
+            /* 初始化COZE */
+            esp_err_t ret = coze_chat_app_init();
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to initialize audio board");
+            }
             while(1){
                 vTaskDelay(pdMS_TO_TICKS(1000)); 
             }
@@ -164,6 +215,7 @@ static esp_err_t init_spiffs(void)
     return ESP_OK;
 }
 
+
 void network_init(void)
 {
     // 初始化NVS
@@ -176,6 +228,7 @@ void network_init(void)
 
     // 初始化SPIFFS
     ESP_ERROR_CHECK(init_spiffs());
+
 
     // 初始化WiFi
     ESP_ERROR_CHECK(wifi_init());
