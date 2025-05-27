@@ -17,8 +17,6 @@
 #include "wifi_manager.h"
 #include "http_server.h"
 #include "ml307_wrapper.h"
-#include "esp_coze_chat.h"
-#include "coze_chat_app.h"
 #include "esp_err.h"
 #include <time.h>
 #include "esp_sntp.h" 
@@ -149,11 +147,6 @@ static void net_fsm_handle(net_fsm_t *fsm)
             stop_webserver();// 停止配网
             check_and_update_time();
 
-            /* 初始化COZE */
-            esp_err_t ret = coze_chat_app_init();
-            if (ret != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to initialize audio board");
-            }
             while(1){
                 vTaskDelay(pdMS_TO_TICKS(1000)); 
             }
