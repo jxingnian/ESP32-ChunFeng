@@ -35,7 +35,7 @@ static char *TAG = "COZE_CHAT_APP";
 // Opus解码器实例
 static OpusDecoder *opus_decoder = NULL;
 static QueueHandle_t audio_queue = NULL;
-
+static uint8_t audio_read_flag = 1;
 // 定义音频帧结构
 struct audio_frame {
     uint8_t data[MAX_PACKET_SIZE];
@@ -90,9 +90,9 @@ static void opus_decode_task(void *arg)
     while (1) {
         struct audio_frame frame;
         if (xQueueReceive(audio_queue, &frame, portMAX_DELAY) == pdTRUE) {
-            ESP_LOGI(TAG, "Received frame len: %d, stack: %d", 
-                     frame.len, 
-                     uxTaskGetStackHighWaterMark(NULL));
+            // ESP_LOGI(TAG, "Received frame len: %d, stack: %d", 
+                    //  frame.len, 
+                    //  uxTaskGetStackHighWaterMark(NULL));
 
             // 安全检查
             if (frame.len > MAX_PACKET_SIZE) {
@@ -118,16 +118,15 @@ static void opus_decode_task(void *arg)
                                               frame_size * sizeof(int16_t), 
                                               &bytes_written);
                 
-                ESP_LOGI(TAG, "Played frame, size: %d, written: %d, ret: %d, stack: %d",
-                         frame_size,
-                         bytes_written,
-                         ret,
-                         uxTaskGetStackHighWaterMark(NULL));
+                // ESP_LOGI(TAG, "Played frame, size: %d, written: %d, ret: %d, stack: %d",
+                //          frame_size,
+                //          bytes_written,
+                //          ret,
+                //          uxTaskGetStackHighWaterMark(NULL));
             } else {
                 ESP_LOGE(TAG, "Opus decode failed: %d", frame_size);
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
@@ -184,6 +183,7 @@ static void audio_event_callback(esp_coze_chat_event_t event, char *data, void *
         ESP_LOGI(TAG, "chat start");
     } else if (event == ESP_COZE_CHAT_EVENT_CHAT_SPEECH_STOPED) {
         ESP_LOGI(TAG, "chat stop");
+        audio_read_flag = 0;
     } else if (event == ESP_COZE_CHAT_EVENT_CHAT_CUSTOMER_DATA) {
         // cjson格式数据
         ESP_LOGI(TAG, "Customer data: %s", data);
@@ -233,17 +233,19 @@ static void audio_data_read_task(void *pv)
 
     size_t bytes_read = 0;
     while (true) {
-#if defined CONFIG_VOICE_WAKEUP_MODE
-        esp_err_t ret = audio_data_get(data, 4096 * 3, &bytes_read);
-        if (ret == ESP_OK && coze_chat.wakeuped) {
-            esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, bytes_read);
-        }
-#else
-        esp_err_t ret = audio_data_get(data, 4096 * 3, &bytes_read);
-        if (ret == ESP_OK) {
-            esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, bytes_read);
-        }
-#endif 
+        #if defined CONFIG_VOICE_WAKEUP_MODE
+            esp_err_t ret = audio_data_get(data, 4096 * 3, &bytes_read);
+            if (ret == ESP_OK && coze_chat.wakeuped) {
+                esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, bytes_read);
+            }
+        #else
+            if(audio_read_flag){
+                esp_err_t ret = audio_data_get(data, 4096 * 3, &bytes_read);
+                if (ret == ESP_OK) {
+                    esp_coze_chat_send_audio_data(coze_chat.chat, (char *)data, bytes_read);
+                }
+            }
+        #endif 
         vTaskDelay(pdMS_TO_TICKS(10)); // 添加短暂延时避免占用过多CPU
     }
 

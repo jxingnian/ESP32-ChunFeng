@@ -40,6 +40,9 @@ esp_err_t audio_data_get(void *buf, size_t len, size_t *bytes_read);
  */
 esp_err_t audio_data_play(void *buf, size_t len, size_t *bytes_written);
 
+// 清空音频缓冲区
+esp_err_t audio_play_buffer_clear(void);
+
 /**
  * @brief 设置音量
  * @param volume 音量值(0-100)
