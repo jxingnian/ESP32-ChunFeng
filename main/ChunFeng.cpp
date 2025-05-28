@@ -1,94 +1,192 @@
-// /*
-//  * @Author: xingnian j_xingnian@163.com
-//  * @Date: 2025-05-28 21:39:21
-//  * @LastEditors: 星年 && j_xingnian@163.com
-//  * @LastEditTime: 2025-05-28 21:42:35
-//  * @FilePath: \ESP32-ChunFeng\main\ChunFeng.cpp
-//  * @Description: ChunFeng主类实现
-//  * 
-//  * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
-//  */
-//  #include "ChunFeng.hpp"
-// #include "NetworkManager.hpp"
-// #include "AudioManager.hpp"
-// #include "CozeManager.hpp"
-// #include "WebManager.hpp"
+/*
+ * @Author: xingnian j_xingnian@163.com
+ * @Date: 2025-05-28 21:39:21
+ * @LastEditors: 星年 && j_xingnian@163.com
+ * @LastEditTime: 2025-05-28 23:14:40
+ * @FilePath: \ESP32-ChunFeng\main\ChunFeng.cpp
+ * @Description: ChunFeng主类实现
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
+ */
+#include "ChunFeng.hpp"
 
-// const char* ChunFeng::TAG = "ChunFeng";
+const char* ChunFeng::TAG = "ChunFeng";
 
-// esp_err_t ChunFeng::init() {
-//     ESP_LOGI(TAG, "Initializing ChunFeng...");
+// 构造函数
+ChunFeng::ChunFeng() 
+    : currentState(State::INIT)
+    , eventQueue(nullptr)
+    , stateMachineTaskHandle(nullptr)
+    , stateChangeCallback(nullptr) {
+    // 创建事件队列
+    eventQueue = xQueueCreate(10, sizeof(Event));
+    if (eventQueue == nullptr) {
+        ESP_LOGE(TAG, "Failed to create event queue");
+        return;
+    }
 
-//     // 创建各个管理器实例
-//     networkManager = std::make_unique<NetworkManager>();
-//     audioManager = std::make_unique<AudioManager>();
-//     cozeManager = std::make_unique<CozeManager>();
-//     webManager = std::make_unique<WebManager>();
+    // 创建状态机任务
+    BaseType_t ret = xTaskCreate(
+        stateMachineTask,
+        "state_machine",
+        4096,
+        this,
+        5,
+        &stateMachineTaskHandle
+    );
 
-//     // 初始化各个管理器
-//     ESP_ERROR_CHECK(networkManager->init());
-//     ESP_ERROR_CHECK(webManager->init());
+    if (ret != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create state machine task");
+    }
+}
 
-//     // 设置网页配网回调
-//     webManager->setWiFiConfigCallback([this](const std::string& ssid, const std::string& password) {
-//         return networkManager->connect(ssid, password);
-//     });
+// 析构函数
+ChunFeng::~ChunFeng() {
+    if (stateMachineTaskHandle != nullptr) {
+        vTaskDelete(stateMachineTaskHandle);
+    }
+    if (eventQueue != nullptr) {
+        vQueueDelete(eventQueue);
+    }
+}
 
-//     // 设置音频配置
-//     AudioManager::AudioConfig audioConfig{
-//         .sampleRate = 16000,
-//         .bitsPerSample = 16,
-//         .channels = 1,
-//         .bufferSize = 2048
-//     };
-//     ESP_ERROR_CHECK(audioManager->init(audioConfig));
+esp_err_t ChunFeng::init() {
+    ESP_LOGI(TAG, "Initializing ChunFeng...");
 
-//     // 设置音频回调
-//     audioManager->setAudioCallback([this](const uint8_t* data, size_t length) {
-//         if (cozeManager->isConnected()) {
-//             cozeManager->sendAudioData(data, length);
-//         }
-//     });
+    // 创建各个管理器实例
+    networkManager = std::make_unique<NetworkManager>();
+    ESP_ERROR_CHECK(networkManager->init());
 
-//     // 初始化Coze管理器
-//     // TODO: 从配置文件或NVS中读取API Key
-//     std::string apiKey = "your_coze_api_key";
-//     ESP_ERROR_CHECK(cozeManager->init(apiKey));
+    // 发送初始化完成事件
+    sendEvent(Event::INIT_DONE);
 
-//     // 设置Coze音频回调
-//     cozeManager->setAudioCallback([this](const uint8_t* data, size_t length) {
-//         audioManager->playAudio(data, length);
-//     });
+    return ESP_OK;
+}
 
-//     return ESP_OK;
-// }
+esp_err_t ChunFeng::start() {
+    ESP_LOGI(TAG, "Starting ChunFeng services...");
+    return ESP_OK;
+}
 
-// esp_err_t ChunFeng::start() {
-//     ESP_LOGI(TAG, "Starting ChunFeng services...");
+void ChunFeng::stop() {
+    ESP_LOGI(TAG, "Stopping ChunFeng services...");
+    if (networkManager) networkManager->disconnect();
+}
 
-//     // 启动Web服务器
-//     ESP_ERROR_CHECK(webManager->start());
+void ChunFeng::sendEvent(Event event) {
+    if (eventQueue != nullptr) {
+        xQueueSend(eventQueue, &event, portMAX_DELAY);
+    }
+}
 
-//     // 尝试连接WiFi（如果有保存的配置）
-//     // TODO: 从NVS中读取保存的WiFi配置
-    
-//     // 如果WiFi连接失败，启动配网模式
-//     if (!networkManager->isConnected()) {
-//         ESP_LOGI(TAG, "Starting SmartConfig...");
-//         ESP_ERROR_CHECK(networkManager->startSmartConfig());
-//     }
+void ChunFeng::setState(State newState) {
+    if (currentState != newState) {
+        State oldState = currentState;
+        currentState = newState;
+        
+        // 调用状态变化回调函数
+        if (stateChangeCallback) {
+            stateChangeCallback(oldState, newState);
+        }
+        
+        ESP_LOGI(TAG, "State changed: %s -> %s", 
+                 getStateString(oldState), 
+                 getStateString(newState));
+    }
+}
 
-//     // 连接Coze服务器
-//     ESP_ERROR_CHECK(cozeManager->connect());
+const char* ChunFeng::getStateString() const {
+    return getStateString(currentState);
+}
 
-//     return ESP_OK;
-// }
+const char* ChunFeng::getStateString(State state) {
+    switch (state) {
+        case State::INIT:        return "INIT";
+        case State::WIFI_CONFIG: return "WIFI_CONFIG";
+        case State::CONNECTING:  return "CONNECTING";
+        case State::IDLE:        return "IDLE";
+        case State::LISTENING:   return "LISTENING";
+        case State::RECORDING:   return "RECORDING";
+        case State::PROCESSING:  return "PROCESSING";
+        case State::SPEAKING:    return "SPEAKING";
+        case State::ERROR:       return "ERROR";
+        default:                 return "UNKNOWN";
+    }
+}
 
-// void ChunFeng::stop() {
-//     ESP_LOGI(TAG, "Stopping ChunFeng services...");
-    
-//     if (cozeManager) cozeManager->disconnect();
-//     if (networkManager) networkManager->disconnect();
-//     if (webManager) webManager->stop();
-//     if (audioManager) audioManager->stopRecording();
-// }
+void ChunFeng::handleState() {
+    Event event;
+    if (xQueueReceive(eventQueue, &event, portMAX_DELAY) == pdTRUE) {
+        switch (currentState) {
+            case State::INIT:
+                if (event == Event::INIT_DONE) {
+                    setState(State::WIFI_CONFIG);
+                }
+                break;
+
+            case State::WIFI_CONFIG:
+                if (event == Event::CONFIG_DONE) {
+                    setState(State::CONNECTING);
+                }
+                break;
+
+            case State::CONNECTING:
+                if (event == Event::WIFI_CONNECTED) {
+                    setState(State::IDLE);
+                } else if (event == Event::WIFI_DISCONNECTED) {
+                    setState(State::WIFI_CONFIG);
+                }
+                break;
+
+            case State::IDLE:
+                if (event == Event::WAKE_UP) {
+                    setState(State::LISTENING);
+                } else if (event == Event::WIFI_DISCONNECTED) {
+                    setState(State::CONNECTING);
+                }
+                break;
+
+            case State::LISTENING:
+                if (event == Event::START_RECORD) {
+                    setState(State::RECORDING);
+                }
+                break;
+
+            case State::RECORDING:
+                if (event == Event::STOP_RECORD) {
+                    setState(State::PROCESSING);
+                }
+                break;
+
+            case State::PROCESSING:
+                if (event == Event::PROCESS_DONE) {
+                    setState(State::SPEAKING);
+                }
+                break;
+
+            case State::SPEAKING:
+                if (event == Event::SPEAK_DONE) {
+                    setState(State::IDLE);
+                }
+                break;
+
+            case State::ERROR:
+                if (event == Event::RESET) {
+                    setState(State::INIT);
+                }
+                break;
+        }
+
+        // 检查是否发生错误
+        if (event == Event::ERROR_OCCURRED) {
+            setState(State::ERROR);
+        }
+    }
+}
+
+void ChunFeng::stateMachineTask(void* parameter) {
+    ChunFeng* chunFeng = static_cast<ChunFeng*>(parameter);
+    while (true) {
+        chunFeng->handleState();
+    }
+}

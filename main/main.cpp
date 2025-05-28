@@ -1,7 +1,7 @@
 /*
  * @Author: jixingnian@gmail.com
  * @Date: 2025-05-24 14:53:16
- * @LastEditTime: 2025-05-28 21:45:17
+ * @LastEditTime: 2025-05-28 21:55:49
  * @LastEditors: 星年 && j_xingnian@163.com
  * @Description: ESP春风
  * @FilePath: \ESP32-ChunFeng\main\main.cpp
@@ -13,6 +13,7 @@
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "ChunFeng.hpp"
 
 static const char* TAG = "main";
 
@@ -28,10 +29,10 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    // // 获取ChunFeng实例并初始化
-    // ChunFeng& chunFeng = ChunFeng::getInstance();
-    // ESP_ERROR_CHECK(chunFeng.init());
-    // ESP_ERROR_CHECK(chunFeng.start());
+    // 获取ChunFeng实例并初始化
+    ChunFeng& chunFeng = ChunFeng::getInstance();
+    ESP_ERROR_CHECK(chunFeng.init());
+    ESP_ERROR_CHECK(chunFeng.start());
 
     // 主程序永远运行
     while (true) {

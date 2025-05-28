@@ -1,8 +1,8 @@
 idf_component_register(
     SRCS 
         "main.cpp"
-#        "ChunFeng.cpp"
-#        "NetworkManager.cpp"
+        "ChunFeng.cpp"
+        "NetworkManager.cpp"
 #        "AudioManager.cpp"
 #        "CozeManager.cpp"
 #        "WebManager.cpp"
