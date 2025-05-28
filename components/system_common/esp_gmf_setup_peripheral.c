@@ -115,102 +115,6 @@ static esp_err_t setup_periph_create_i2s(i2s_create_mode_t mode, esp_gmf_setup_p
 }
 
 /**
- * @brief 创建新的I2S数据接口
- * @param tx_hd I2S发送句柄
- * @param rx_hd I2S接收句柄
- * @return 音频编解码器数据接口
- */
-static const audio_codec_data_if_t *setup_periph_new_i2s_data(void *tx_hd, void *rx_hd)
-{
-    audio_codec_i2s_cfg_t i2s_cfg = {
-        .rx_handle = rx_hd,  // I2S接收句柄
-        .tx_handle = tx_hd,  // I2S发送句柄
-    };
-    return audio_codec_new_i2s_data(&i2s_cfg);
-}
-
-/**
- * @brief 创建播放编解码器
- */
-static void setup_periph_new_play_codec(void)
-{
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-    // ESP32C3使用GPIO控制功放
-    if (gpio_if == NULL) {
-        gpio_if = audio_codec_new_gpio();
-    }
-    gpio_if->setup(ESP_GMF_AMP_IO_NUM, AUDIO_GPIO_DIR_OUT, AUDIO_GPIO_MODE_PULL_DOWN);
-    gpio_if->set(ESP_GMF_AMP_IO_NUM, 1);
-#else
-    // 其他芯片使用ES8311编解码器
-    audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES8311_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
-    if (out_ctrl_if == NULL) {
-        out_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
-    }
-    if (gpio_if == NULL) {
-        gpio_if = audio_codec_new_gpio();
-    }
-    // 创建输出编解码器接口
-    es8311_codec_cfg_t es8311_cfg = {
-        .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,  // DAC模式
-        .ctrl_if = out_ctrl_if,                     // 控制接口
-        .gpio_if = gpio_if,                         // GPIO接口
-        .pa_pin = ESP_GMF_AMP_IO_NUM,              // 功放引脚
-        .use_mclk = true,                          // 使用主时钟
-    };
-    if (out_codec_if == NULL) {
-        out_codec_if = es8311_codec_new(&es8311_cfg);
-    }
-#endif  /* CONFIG_IDF_TARGET_ESP32C3 */
-}
-
-/**
- * @brief 创建录音编解码器
- */
-static void setup_periph_new_record_codec(void)
-{
-#if defined CONFIG_IDF_TARGET_ESP32P4
-    // ESP32P4使用ES8311编解码器
-    audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES8311_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
-    in_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
-    if (gpio_if == NULL) {
-        gpio_if = audio_codec_new_gpio();
-    }
-    // 创建输出编解码器接口
-    es8311_codec_cfg_t es8311_cfg = {
-        .codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH,  // ADC和DAC模式
-        .ctrl_if = in_ctrl_if,                       // 控制接口
-        .gpio_if = gpio_if,                          // GPIO接口
-        .pa_pin = ESP_GMF_AMP_IO_NUM,               // 功放引脚
-        .use_mclk = true,                           // 使用主时钟
-    };
-    in_codec_if = es8311_codec_new(&es8311_cfg);
-#elif CONFIG_IDF_TARGET_ESP32
-    // ESP32使用ES7243编解码器
-    audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES7243_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
-    in_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
-    if (gpio_if == NULL) {
-        gpio_if = audio_codec_new_gpio();
-    }
-    // 创建输出编解码器接口
-    es7243_codec_cfg_t es7243_cfg = {
-        .ctrl_if = in_ctrl_if,  // 控制接口
-    };
-    in_codec_if = es7243_codec_new(&es7243_cfg);
-#else
-    // 其他芯片使用ES7210编解码器
-    audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES7210_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
-    in_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
-    es7210_codec_cfg_t es7210_cfg = {
-        .ctrl_if = in_ctrl_if,  // 控制接口
-        .mic_selected = ES7120_SEL_MIC1 | ES7120_SEL_MIC2 | ES7120_SEL_MIC3,  // 选择使用的麦克风
-    };
-    in_codec_if = es7210_codec_new(&es7210_cfg);
-#endif  /* defined CONFIG_IDF_TARGET_ESP32P4 */
-}
-
-#ifdef USE_ESP_GMF_ESP_CODEC_DEV_IO
-/**
  * @brief 设置音频编解码器外设
  * @param play_info 播放设备配置信息
  * @param rec_info 录音设备配置信息  
@@ -239,39 +143,17 @@ esp_gmf_err_t esp_gmf_setup_periph_codec(esp_gmf_setup_periph_aud_info *play_inf
             ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_RX_ONLY, rec_info),
                                   {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S rx");
         }
-        // 配置播放和录音编解码器
-        setup_periph_play_codec(play_info, play_dev);
-        setup_periph_record_codec(rec_info, record_dev);
     } else if (play_dev != NULL) {
         // 仅配置播放设备
         ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_TX_ONLY, play_info),
                               {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S tx");
-        setup_periph_play_codec(play_info, play_dev);
     } else if (record_dev != NULL) {
         // 仅配置录音设备
         ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_RX_ONLY, rec_info),
                               {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S rx");
-        setup_periph_record_codec(rec_info, record_dev);
     } else {
         // 无效的参数组合
         return ESP_GMF_ERR_FAIL;
     }
     return ESP_GMF_ERR_OK;
 }
-
-/**
- * @brief 释放音频编解码器外设资源
- * @param play_dev 播放设备句柄
- * @param record_dev 录音设备句柄
- * @note 该函数会根据传入的设备句柄释放相应的资源
- */
-void esp_gmf_teardown_periph_codec(void *play_dev, void *record_dev)
-{
-    if (play_dev != NULL) {
-        teardown_periph_play_codec(play_dev);
-    }
-    if (record_dev != NULL) {
-        teardown_periph_record_codec(record_dev);
-    }
-}
-#endif /* USE_ESP_GMF_ESP_CODEC_DEV_IO */

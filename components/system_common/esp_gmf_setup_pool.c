@@ -43,6 +43,7 @@
 /* 音频编码相关头文件 */
 #include "esp_audio_enc_default.h"
 #include "esp_gmf_audio_enc.h"
+#include "esp_gmf_io_codec_dev.h"
 
 /* 其他系统组件头文件 */
 #include "esp_audio_dec_default.h"
@@ -58,11 +59,6 @@ static const char *TAG = "ESP_GMF_SETUP_POOL";
 #define SETUP_AUDIO_BITS        16     // 默认位深16bit
 #define SETUP_AUDIO_CHANNELS    1      // 默认单声道
 
-/* HTTP Content-Type 头部类型定义 */
-static const char *header_type[] = {
-    "audio/opus",  // OPUS音频类型
-};
-
 /**
  * @brief 注册编解码设备IO
  * 初始化并注册播放和录音设备到GMF池中
@@ -72,7 +68,6 @@ static const char *header_type[] = {
  */
 void pool_register_codec_dev_io(esp_gmf_pool_handle_t pool, void *play_dev, void *record_dev)
 {
-#ifdef USE_ESP_GMF_ESP_CODEC_DEV_IO
     esp_gmf_io_handle_t dev = NULL;
     
     /* 注册播放设备 */
@@ -94,7 +89,6 @@ void pool_register_codec_dev_io(esp_gmf_pool_handle_t pool, void *play_dev, void
         esp_gmf_io_codec_dev_init(&rx_codec_dev_cfg, &dev);
         esp_gmf_pool_register_io(pool, dev, NULL);
     }
-#endif /* USE_ESP_GMF_ESP_CODEC_DEV_IO */
 }
 
 /**
