@@ -1,17 +1,19 @@
-idf_component_register(SRCS "main.c" 
-                            "app_network/wifi_manager.c" 
-                            "app_network/http_server.c" 
-                            "app_network/app_network.c"
-                            "app_network/ml307_wrapper.cpp"
-                            "app_audio/app_audio.c"
-                            "app_coze/coze_chat_app.c"
-                    INCLUDE_DIRS "." 
-                                "app_network/" 
-                                "app_coze/" 
-                                "app_audio/"
-                    REQUIRES esp_wifi esp_http_server nvs_flash json 
-                                spiffs 78__esp-ml307 driver system_common)
+idf_component_register(
+    SRCS 
+        "main.cpp"
+#        "ChunFeng.cpp"
+#        "NetworkManager.cpp"
+#        "AudioManager.cpp"
+#        "CozeManager.cpp"
+#        "WebManager.cpp"
+    INCLUDE_DIRS "."
+    REQUIRES 
+        esp_wifi
+        nvs_flash
+        driver
+)
 
 # 启用C++支持
-set_source_files_properties("esp_network/ml307_wrapper.cpp" PROPERTIES COMPILE_FLAGS -std=gnu++17)
-# target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu++17)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+target_compile_options(${COMPONENT_LIB} PRIVATE "-std=gnu++17")
