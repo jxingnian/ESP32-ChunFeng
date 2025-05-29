@@ -1,12 +1,7 @@
 idf_component_register(
     SRCS 
         "main.cpp"
-        "ChunFeng.cpp"
-        "NetworkManager.cpp"
-#        "AudioManager.cpp"
-#        "CozeManager.cpp"
-#        "WebManager.cpp"
-    INCLUDE_DIRS "."
+    INCLUDE_DIRS "." "include"
     REQUIRES 
         esp_wifi
         nvs_flash
