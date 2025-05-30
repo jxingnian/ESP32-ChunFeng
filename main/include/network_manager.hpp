@@ -22,7 +22,16 @@ enum class NetworkState {
     CONNECTING,     ///< 正在连接
     WIFI_CONNECTED, ///< WiFi已连接
     LTE_CONNECTED,  ///< 4G已连接
-    FAILED         ///< 连接失败
+    FAILED          ///< 连接失败
+};
+
+// 状态机事件枚举
+enum class NetworkEvent {
+    WIFI_CONNECTED,
+    WIFI_FAILED,
+    LTE_CONNECTED,
+    LTE_FAILED,
+    DISCONNECT
 };
 
 /**
@@ -30,30 +39,41 @@ enum class NetworkState {
  */
 class NetworkManager {
 public:
+    /**
+     * @brief 获取单例实例
+     */
     static NetworkManager& getInstance();
 
     /**
-     * @brief 初始化网络
+     * @brief 构造函数，自动完成网络初始化并启动状态机
      */
-    bool initialize();
+    NetworkManager();
 
     /**
-     * @brief 反初始化网络
+     * @brief 析构函数，自动完成网络反初始化
      */
-    void deinitialize();
+    ~NetworkManager();
 
     /**
      * @brief 获取当前网络状态
      */
     NetworkState getState() const;
 
-    /**
-     * @brief 上报网络状态
-     */
-    void reportState();
-
 private:
-    NetworkManager() = default;
+    // 禁止外部拷贝和赋值
+    NetworkManager(const NetworkManager&) = delete;
+    NetworkManager& operator=(const NetworkManager&) = delete;
+
+    /**
+     * @brief 状态机主循环
+     */
+    void runStateMachine();
+
+    /**
+     * @brief 处理状态机事件
+     */
+    void handleEvent(enum class NetworkEvent event);
+
     NetworkState current_state_{NetworkState::INIT};
 };
 

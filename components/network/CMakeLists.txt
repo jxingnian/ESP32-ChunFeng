@@ -1,13 +1,10 @@
 idf_component_register(
-    SRCS 
-        "main.cpp"
-        "src/network_manager.cpp"
-    INCLUDE_DIRS "." "include"
-    REQUIRES 
+    SRCS "src/config_manager.cpp"
+            "src/wifi_manager.cpp"
+            "src/lte_manager.cpp"
+    INCLUDE_DIRS "include"
+    REQUIRES
         esp_wifi
-        nvs_flash
-        driver
-        network
 )
 
 # 启用C++支持

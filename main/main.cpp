@@ -7,12 +7,11 @@
  * @FilePath: \ESP32-ChunFeng\main\main.cpp
  * 遇事不决，可问春风
  */
-#include "system_state.hpp"
 #include "network_manager.hpp"
-#include "audio_manager.hpp"
-#include "coze_manager.hpp"
-#include "display_manager.hpp"
-#include "backend_manager.hpp"
+// #include "audio_manager.hpp"
+// #include "coze_manager.hpp"
+// #include "display_manager.hpp"
+// #include "backend_manager.hpp"
 #include "freertos/FreeRTOS.h"   /* FreeRTOS核心头文件 */
 // #include "freertos/event_groups.h"/* FreeRTOS事件组头文件 */
 
@@ -34,38 +33,16 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     // 获取各个管理器实例
-    auto& state_mgr = SystemStateManager::getInstance();
     auto& network_mgr = NetworkManager::getInstance();
-    auto& audio_mgr = AudioManager::getInstance();
-    auto& coze_mgr = CozeManager::getInstance();
-    auto& display_mgr = DisplayManager::getInstance();
-    auto& backend_mgr = BackendManager::getInstance();
-
-    // 系统初始化
-    state_mgr.setState(SystemState::INIT);
+    // auto& audio_mgr = AudioManager::getInstance();
+    // auto& coze_mgr = CozeManager::getInstance();
+    // auto& display_mgr = DisplayManager::getInstance();
+    // auto& backend_mgr = BackendManager::getInstance();
     
     // TODO: 初始化各个模块
     
     // 进入主循环
     while (true) {
-        switch (state_mgr.getCurrentState()) {
-            case SystemState::INIT:
-                // TODO: 处理初始化状态
-                break;
-            
-            case SystemState::NETWORKING:
-                // TODO: 处理联网状态
-                break;
-            
-            case SystemState::RUNNING:
-                // TODO: 处理运行状态
-                break;
-            
-            case SystemState::ERROR:
-                // TODO: 处理错误状态
-                break;
-        }
-        
-        vTaskDelay(pdMS_TO_TICKS(100)); // 避免占用过多CPU
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 避免占用过多CPU
     }
 }
