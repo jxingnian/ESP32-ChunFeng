@@ -60,50 +60,52 @@ void NetworkManager::runStateMachine() {
                 // 1. 配置管理器（如有需要可初始化）
                 ConfigManager& config = ConfigManager::getInstance();
 
-                // 2. WiFi 管理器
-                WiFiManager& wifi = WiFiManager::getInstance();
+                // // 2. WiFi 管理器
+                // WiFiManager& wifi = WiFiManager::getInstance();
 
-                // 3. LTE 管理器
-                LTEManager& lte = LTEManager::getInstance();
+                // // 3. LTE 管理器
+                // LTEManager& lte = LTEManager::getInstance();
                 
                 current_state_ = NetworkState::CONNECTING;
                 break;
             }
             case NetworkState::CONNECTING: {
                 std::cout << "[NetworkManager] 状态: CONNECTING" << std::endl;
-                // 先尝试从NVS读取WiFi信息
-                std::string ssid, password;
-                bool wifiInfoLoaded = WiFiManager::getInstance().loadWiFiInfo(ssid, password);
-                if (wifiInfoLoaded) {
-                    // 有WiFi信息，尝试连接
-                    if (WiFiManager::getInstance().connect(ssid, password)) {
-                        handleEvent(NetworkEvent::WIFI_CONNECTED);
-                    } else {
-                        handleEvent(NetworkEvent::WIFI_FAILED);
-                        // WiFi连接失败，尝试4G
-                        if (LTEManager::getInstance().connect()) {
-                            handleEvent(NetworkEvent::LTE_CONNECTED);
-                        } else {
-                            handleEvent(NetworkEvent::LTE_FAILED);
-                        }
-                    }
-                } else {
-                    // 没有WiFi信息，直接进入4G
-                    std::cerr << "[NetworkManager] 未找到WiFi信息，直接尝试4G" << std::endl;
-                    if (LTEManager::getInstance().connect()) {
-                        handleEvent(NetworkEvent::LTE_CONNECTED);
-                    } else {
-                        handleEvent(NetworkEvent::LTE_FAILED);
-                    }
-                }
-                break;
+                ConfigManager::getInstance().startConfig();
+                handleEvent(NetworkEvent::WIFI_CONNECTED);
+                // // 先尝试从NVS读取WiFi信息
+                // std::string ssid, password;
+                // bool wifiInfoLoaded = WiFiManager::getInstance().loadWiFiInfo(ssid, password);
+                // if (wifiInfoLoaded) {
+                //     // 有WiFi信息，尝试连接
+                //     if (WiFiManager::getInstance().connect(ssid, password)) {
+                //         handleEvent(NetworkEvent::WIFI_CONNECTED);
+                //     } else {
+                //         handleEvent(NetworkEvent::WIFI_FAILED);
+                //         // WiFi连接失败，尝试4G
+                //         if (LTEManager::getInstance().connect()) {
+                //             handleEvent(NetworkEvent::LTE_CONNECTED);
+                //         } else {
+                //             handleEvent(NetworkEvent::LTE_FAILED);
+                //         }
+                //     }
+                // } else {
+                //     // 没有WiFi信息，直接进入4G
+                //     std::cerr << "[NetworkManager] 未找到WiFi信息，直接尝试4G" << std::endl;
+                //     if (LTEManager::getInstance().connect()) {
+                //         handleEvent(NetworkEvent::LTE_CONNECTED);
+                //     } else {
+                //         handleEvent(NetworkEvent::LTE_FAILED);
+                //     }
+                // }
+                // break;
             }
             case NetworkState::WIFI_CONNECTED: {
-                std::cout << "[NetworkManager] 状态: WIFI_CONNECTED" << std::endl;
-                // 检查WiFi是否掉线
-                if (!WiFiManager::getInstance().isConnected()) {
-                    handleEvent(NetworkEvent::DISCONNECT);
-                }
+                // std::cout << "[NetworkManager] 状态: WIFI_CONNECTED" << std::endl;
+                // // 检查WiFi是否掉线
+                // if (!WiFiManager::getInstance().isConnected()) {
+                //     handleEvent(NetworkEvent::DISCONNECT);
+                // }
                 break;
             }
             case NetworkState::LTE_CONNECTED: {
@@ -121,6 +123,8 @@ void NetworkManager::runStateMachine() {
             default:
                 break;
         }
+        // 延时
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 避免占用过多CPU
     }
 }
 

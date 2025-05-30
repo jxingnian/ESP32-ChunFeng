@@ -1,3 +1,13 @@
+/*
+ * @Author: xingnian j_xingnian@163.com
+ * @Date: 2025-05-30 20:05:17
+ * @LastEditors: 星年 && j_xingnian@163.com
+ * @LastEditTime: 2025-05-30 20:37:21
+ * @FilePath: \ESP32-ChunFeng\components\network\src\config_manager.cpp
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
+ */
 #include "config_manager.hpp"
 #include <iostream>
 
@@ -11,6 +21,7 @@ ConfigManager::ConfigManager() {
 
 ConfigManager::~ConfigManager() {
     std::cout << "[ConfigManager] 析构..." << std::endl;
+    stopConfig();
     initialized_ = false;
     started_ = false;
 }
@@ -33,8 +44,12 @@ bool ConfigManager::startConfig() {
         std::cout << "[ConfigManager] 配网已启动，无需重复启动。" << std::endl;
         return true;
     }
-    std::cout << "[ConfigManager] 启动配网..." << std::endl;
-    // 这里添加实际的配网启动代码
+    std::cout << "[ConfigManager] 启动配网（AP+STA+网页）..." << std::endl;
+    // 启动配网驱动
+    if (!config_network_.start()) {
+        std::cerr << "[ConfigManager] 配网驱动启动失败！" << std::endl;
+        return false;
+    }
     started_ = true;
     return true;
 }
@@ -45,7 +60,8 @@ void ConfigManager::stopConfig() {
         return;
     }
     std::cout << "[ConfigManager] 停止配网..." << std::endl;
-    // 这里添加实际的配网停止代码
+    // 停止配网驱动
+    config_network_.stop();
     started_ = false;
 }
 

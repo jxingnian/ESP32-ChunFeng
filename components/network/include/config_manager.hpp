@@ -8,6 +8,7 @@
  * @遇事不决，可问春风
  */
 #pragma once
+#include "bsp_config_network.hpp"  // 加入配网驱动头文件
 
 namespace chunfeng {
 
@@ -65,6 +66,7 @@ private:
      * @brief 配网启动状态
      */
     bool started_{false};
+    BspConfigNetwork config_network_;  ///< 配网驱动对象
 };
 
 } // namespace chunfeng 

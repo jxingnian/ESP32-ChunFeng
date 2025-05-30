@@ -3,12 +3,14 @@ idf_component_register(
             "src/wifi_manager.cpp"
             "src/lte_manager.cpp"
             "src/bsp_wifi.cpp"
+            "src/bsp_config_network"
     INCLUDE_DIRS "include"
     REQUIRES
         esp_wifi
         nvs_flash
         driver
         78__esp-ml307
+        esp_http_server
 )
 
 # 启用C++支持
