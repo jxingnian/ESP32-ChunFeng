@@ -1,13 +1,19 @@
 /*** 
  * @Author: jixingnian@gmail.com
  * @Date: 2025-05-30 12:19:57
- * @LastEditTime: 2025-05-30 14:51:54
+ * @LastEditTime: 2025-05-30 17:42:26
  * @LastEditors: 星年
  * @Description: LTE（4G）管理类，负责 LTE 的初始化、连接、断开、反初始化与状态查询
  * @FilePath: \ESP32-ChunFeng\components\network\include\lte_manager.hpp
  * @遇事不决，可问春风
  */
 #pragma once
+
+#include "esp_log.h"
+#include "ml307_at_modem.h"
+#include "ml307_ssl_transport.h"
+#include "ml307_http.h"
+#include "ml307_mqtt.h"
 
 namespace chunfeng {
 
@@ -30,6 +36,16 @@ public:
      * @return LTEManager& 单例引用
      */
     static LTEManager& getInstance();
+
+    /**
+     * @brief 初始化 LTE（4G）网络
+     * 
+     * 尝试连接到配置的 LTE 网络。调用前需确保已初始化。
+     * 
+     * @return true 连接成功
+     * @return false 连接失败
+     */
+    bool initialize();
 
     /**
      * @brief 连接 LTE（4G）网络

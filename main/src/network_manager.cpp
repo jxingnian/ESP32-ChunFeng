@@ -1,9 +1,9 @@
 /*** 
  * @Author: jixingnian@gmail.com
  * @Date: 2025-05-30 12:15:47
- * @LastEditTime: 2025-05-30 15:25:43
+ * @LastEditTime: 2025-05-30 16:54:10
  * @LastEditors: 星年
- * @Description: 
+ * @Description: 网络管理器
  * @FilePath: \ESP32-ChunFeng\main\src\network_manager.cpp
  * @遇事不决，可问春风
  */
@@ -12,6 +12,7 @@
 #include "lte_manager.hpp"
 #include "config_manager.hpp"
 #include <iostream>
+#include <string>
 
 namespace chunfeng {
 
@@ -66,15 +67,29 @@ void NetworkManager::runStateMachine() {
                 LTEManager& lte = LTEManager::getInstance();
                 
                 current_state_ = NetworkState::CONNECTING;
+                break;
             }
             case NetworkState::CONNECTING: {
                 std::cout << "[NetworkManager] 状态: CONNECTING" << std::endl;
-                // 先尝试连接WiFi
-                if (WiFiManager::getInstance().connect()) {
-                    handleEvent(NetworkEvent::WIFI_CONNECTED);
+                // 先尝试从NVS读取WiFi信息
+                std::string ssid, password;
+                bool wifiInfoLoaded = WiFiManager::getInstance().loadWiFiInfo(ssid, password);
+                if (wifiInfoLoaded) {
+                    // 有WiFi信息，尝试连接
+                    if (WiFiManager::getInstance().connect(ssid, password)) {
+                        handleEvent(NetworkEvent::WIFI_CONNECTED);
+                    } else {
+                        handleEvent(NetworkEvent::WIFI_FAILED);
+                        // WiFi连接失败，尝试4G
+                        if (LTEManager::getInstance().connect()) {
+                            handleEvent(NetworkEvent::LTE_CONNECTED);
+                        } else {
+                            handleEvent(NetworkEvent::LTE_FAILED);
+                        }
+                    }
                 } else {
-                    handleEvent(NetworkEvent::WIFI_FAILED);
-                    // 尝试4G
+                    // 没有WiFi信息，直接进入4G
+                    std::cerr << "[NetworkManager] 未找到WiFi信息，直接尝试4G" << std::endl;
                     if (LTEManager::getInstance().connect()) {
                         handleEvent(NetworkEvent::LTE_CONNECTED);
                     } else {
